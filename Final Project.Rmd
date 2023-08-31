@@ -1,0 +1,190 @@
+---
+title: "Final Project"
+author: "Yujia Wu"
+date: "6/5/2020"
+output: html_document
+---
+**Group Member: "Yujia Wu, Kaiyuan Lin"**
+
+Required libraries:
+```{r, warning=F, message=F}
+library(dplyr)
+library(randomForest)
+library(tidyverse)
+library(data.table)
+```
+
+Built in function:
+```{r}
+# accuracy for predictions yhat and true binary outcome y
+acc <- function(y, yhat) mean(y == yhat)
+```
+
+## Instruction
+  Life expectancy is one of the top discussion topics all over the world, since majority of people cares about their lifespan, and human intends to extend life through the whole history. And, because of the development of technology, the improvement of society, and huge amelioration of health sectors, the life expectancy today is quite different from the past. So, no need to say that analyzing ‘life expectancy’ is a worthwhile program that many people have done and still in progress.
+  
+  The data set we use here is related to the life expectancy and health factors for 193 countries from 2000-2015 years. The different health factors in this data set is collected from the WHO website by the poster, and the economy data are collected from the United Nation website also by this person. The board goal for the analysis is to study how those health factors and economic situations will affect the life expectancy, in positive side or negative side. And, make some prediction about the future life expectancy. Notice that the economic situation is a super important variable through the whole analysis, because many health factors are related to the economy status explicitly or implicitly.
+
+```{r}
+# Following part will read the data in and briefly show what the data looks like
+life <- read_csv('Life Expectancy Data.csv')
+head(life)
+```
+
+### (A) The Relationship between Overall Economic Status and Life Expectancy
+##### The economic status here refer to **Status** and **GDP** in the data set.
+We choose year 2014 to do the analyze and find out the relationship.
+```{r}
+# extract useful variables that related to the economic status in Year 2014(Variables are related to the econimic status but may not be used):
+life_2014 <- life %>% filter(Year == 2014, !is.na(GDP)) %>% 
+                      dplyr::select(Country, Year, Status, `Life expectancy`, `percentage expenditure`, `Total expenditure`, GDP)
+```
+
+```{r}
+# first we made a box_plot of whether the country in 2014 is a developing or developed country on the x_axis, and the life expectancy in the y_axis.
+plot(factor(life_2014$Status), life_2014$`Life expectancy`, xlab = 'Overall economic status', ylab = 'Life expectancy', main = 'The 2014 economic status and life expectancy')
+```
+
+From the easy boxplot above, we can already get something useful: 
+
+(1) The minimal life expectancy for developed countries is about 74 ages, which is much higher than developing countries' 48 ages.
+
+(2) The median life expectancy for developed countries is significantly higher than developing countries'.
+
+(3) The range is much larger for developing countires than developed countries, and the maximal life expectancy is roughly same for developed and developing countries, which is a little bit wired.
+
+So, from the simple box plot, we can state that the life expectancy is positivly associated with the overall economic status.
+
+```{r}
+#In order to figure out that are the developed countries has higher GDP is associated with higher life expectancy, we draw a other boxplot:
+plot(factor(life_2014$Status), life_2014$GDP, xlab = 'Overall economic status', ylab = 'GDP', main = 'The 2014 economics status and GDP')
+```
+
+From this box plot, it is true that the developed countries' median GDP is higher than developing countries', but there exists too much extreme big outliers for developing countires. So, we cannot get the most accurate inference from this box plot and get the result that the developed countries has higher GDP than developing countries so that higher GDP is associated with higher life expectancy.
+
+Since the GDP is a numeric variable, so it is more easier for us to use the linear model to directly find the relationship between the GDP and the life expectancy. Using the life expectancy as outcome and GDP as covariate.
+
+```{r}
+life_log_GDPmodel <- lm(life_2014$`Life expectancy` ~ log(life_2014$GDP))
+summary(life_log_GDPmodel)
+plot(log(life_2014$GDP), life_2014$`Life expectancy`, xlab = 'log GDP in 2014 years for different countries', ylab = 'life expectancy in 2014 years') + abline(life_log_GDPmodel)
+```
+
+For the model above, we take the log of GDP, otherwise the point will concentrated on the left side of the plot.
+
+Interpretion of model: 1 units increase in log of GDP is associated with increase in average 2.476 life expectancy, which is a positive association as we supposed above. And, the p_value is very small, and the model shows that it is very significant, so plausible. 
+
+And,from the plot above, we can see the line has positive slope, so the point with high log of GDP tend to have high life expectancy. 
+
+From here, the way we use the overall economic status (developing or developed) may not be the suitable estimate for life expectancy, because as the boxplot before shows that there are many developing countries has high GDP, like China, those high-GDP developing countries address the strange point in the first box plot for the similarity of the maximal life expectancy. From this linear regression model the GDP is directly associated with higher life expectancy. Even though some countries are developing, but they have higher GDP, so the average life expectancy in those countries can reach the same level with the developed countries. GDP is the more accurate indicator for the life expectancy.
+
+Following we will test the model's accuracy on 2015's data set, do the prediction, and show the power of GDP prediction.
+```{r}
+life_2015 <- life %>% filter(Year == 2015) %>% 
+                      dplyr::select(Country, Year, Status, `Life expectancy`, `percentage expenditure`, `Total expenditure`, GDP)
+life_2015$GDP[124] <- 217.2*10^8 / 7919825 #This extra step is because that in the 2015's data, there is one country named Papua New Guinea absence, its GDP is NA, but it occur in 2014's data. So, we serach the 2015's GDP online for this country and add it into the data. 
+life_2015 <- life_2015 %>% filter(!is.na(GDP))
+
+observed <- (life_2015$`Life expectancy`)
+prediction <- (predict(life_log_GDPmodel,life_2015))
+rmse <- sqrt(mean((prediction - observed)^2))
+cat('The Root Mean Square Error for the prediction is', rmse, '\n')
+cat('The mean life expectancy for true value is',mean(observed), '\n')
+cat('The mean life expectancy for the prediction value is', mean(prediction))
+t.test(observed, prediction)
+```
+From the prediction calculation, we get the Root Mean Square Error about seven, which is not too big for this data set that ranges from 50-88, and it shows that our prediction is well done. And, after doing the hypothesis t-test for two means, we get a large p-value: 0.8626, which means that we fail to reject the null hypothesis: 'The true difference in means is equal to 0', which also strengthen our prediction power. 
+
+#### Summary:
+All of the modeling and prediction that we have done is going to verify one thing that the GDP is a good indicator for the life expectancy in the world, and **YES, it is**. The life expectancy is positively associated with the GDP. Higher GDP countries tend to have higher average life expectancy. That's because, those countries have more funds to improve the infrastructure, especially the health sectors. The following analysis will focus on one of other basic infrastructures that is strongly related to the life expectancy.
+
+### (B) The Relationships Between the Educational Level of a Country and The Life Expectancy
+#### the life expectancy refers to **Life expectancy**, and the educational level refers to **Schooling** in the data set.
+
+First, I randomly choose 10 countries, drawing the plot seperately and modify a linear regression model to each. The plot shows that for all the 10 countries, as the level of schooling goes up, people have higher life expectancy in general.
+
+```{r, warning=F}
+life <- life %>% filter(!is.na(Schooling), !is.na(`Life expectancy`))
+
+uni<-unique(life$Country)
+c <- uni[sample(length(uni))[1:10]]
+ data<-life %>% filter(!is.na(`Life expectancy`)&!is.na(`Schooling`))
+ par(mfrow = c(2,5))
+ 
+ ## the function takes in a number and returns the linear regression model for the data
+ b<-function (i) {
+  d<- data%>%filter(Country == uni[i])
+  plot(x = d$'Schooling', y = d$'Life expectancy', data = d)
+  e<-lm(`Life expectancy`~ Schooling, data = d)
+  abline(e)
+  return(e)
+}
+
+ samples <- lapply(c(1:10), b)
+
+lapply(samples, function(x) return(summary(x)))
+```
+We can see that the p-value for most of the countris are really small, which means the static models are significant.
+
+
+Then, I am trying to show whether the Status of the country related to the correlations between Life expectancy and Schooling. I use the logical regression when family equals binomial, and seperate the test and train groups. The result shows that there is a relationship, since the prediction accuracy is higher than 0.8, which means that in developed countries, the high Schooling means higher life expectancy than that of developing countries in most of the cases
+```{r, warning=F}
+ ## the function takes in a number and returns the correlation of the linear regression model for the correspond data
+ forall<-function(i) {
+  d<- data%>%filter(Country == uni[i])
+  if (!is.na(d)){
+  e<-lm(`Life expectancy`~ Schooling, data = d)
+  return(e$coefficients[2])
+  }
+ }
+ alllm <- sapply(c(1:length(uni)), forall)
+ # the function takes a string and returns whether it equals to "Developed"
+status<- function(x) {
+  x=='Developed'
+}
+
+try<-life%>%filter(Year == 2014)%>% mutate(alllm = alllm)
+
+
+train1<- try[1:70,]
+logic <- glm(status(Status)~alllm,data = train1 ,family = 'binomial')
+acc(status(try[71:nrow(try),]$Status), predict(logic, try[71:nrow(try),], type = 'response')>0.5)
+
+```
+
+
+### (C) The Relationship Between the Life Expectancy and Three Immunization Coverage rate.
+
+The immunization contribute a lot to the life expectancy. But, not many people take these into account when analyze the life expectancy. So, here, we consider three immunization coverage rates: Hepatitis.B, Polio, and Diphtheria.
+
+```{r}
+#extract the related data:
+names(life) <- make.names(names(life))
+immune <- life %>% dplyr::select(Country, Year, Life.expectancy, Hepatitis.B, Polio, Diphtheria) %>% drop_na()
+```
+
+```{r}
+immune_model <- glm(round(Life.expectancy) ~ Hepatitis.B + Polio + Diphtheria, data = immune, family = 'poisson')
+summary(immune_model)
+plot(immune_model)
+```
+
+Interpretation of poisson model for two significant variable(polio and diphtheria): For one unit change in the polio and diphtheria, the difference in the logs of life expectancy is expected to change by roughly 1.3e-03, given the other predictor variables in the model are held constant.
+
+From the poisson model above, the coefficient of two immunization coverage rate (The polio and diphtheria) is positive, and the Z value for Polio and Diphtheria is very big, and their p-value is very small so that they are significant.Since the four plots above shows no huge problem of the data (Resiudal is random, almost data points are on the QQ plot, no extreme outliers), we can state that the life expectancy is positively associated with the coverage of Polio and Diphtheria. That's reasonable, because the immunization help us to defend some harsh disease so that human's life expectancy will be extended.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
